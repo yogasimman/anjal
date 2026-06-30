@@ -327,7 +327,7 @@ DELETE https://api.example.com/users/42
 ` + "```" + `
 `)
 
-	requests, err := Parse(content)
+	requests, _, err := Parse(content)
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
@@ -384,7 +384,7 @@ GET https://api.example.com/health
 ` + "```" + `
 `)
 
-	requests, err := Parse(content)
+	requests, _, err := Parse(content)
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
@@ -399,7 +399,7 @@ GET https://api.example.com/health
 
 func TestParse_NoHTTPBlocks(t *testing.T) {
 	content := []byte("# Just a heading\n\nSome text without any HTTP blocks.\n")
-	requests, err := Parse(content)
+	requests, _, err := Parse(content)
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
@@ -418,7 +418,7 @@ GET https://api.example.com/search
 ` + "```" + `
 `)
 
-	requests, err := Parse(content)
+	requests, _, err := Parse(content)
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
@@ -440,7 +440,7 @@ GET https://api.example.com/search
 // ===========================================================================
 
 func TestParseFile_ValidFile(t *testing.T) {
-	requests, err := ParseFile("../../testdata/sample.md")
+	requests, _, err := ParseFile("../../testdata/sample.md")
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
@@ -468,7 +468,7 @@ func TestParseFile_ValidFile(t *testing.T) {
 }
 
 func TestParseFile_NonExistent(t *testing.T) {
-	_, err := ParseFile("../../testdata/does-not-exist.md")
+	_, _, err := ParseFile("../../testdata/does-not-exist.md")
 	if err == nil {
 		t.Fatal("Expected error for non-existent file, got nil")
 	}
@@ -487,7 +487,7 @@ GET https://api.example.com/secure
 ` + "```" + `
 `)
 
-	requests, err := Parse(content)
+	requests, _, err := Parse(content)
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
@@ -572,7 +572,7 @@ Accept: application/json
 	serialized := RequestToMarkdown(req)
 
 	// Parse it back
-	requests, err := Parse([]byte(serialized))
+	requests, _, err := Parse([]byte(serialized))
 	if err != nil {
 		t.Fatalf("Failed to re-parse serialized output: %v", err)
 	}
@@ -613,7 +613,7 @@ func TestRequestToMarkdown_ExplicitID(t *testing.T) {
 	serialized := RequestToMarkdown(req)
 
 	// Re-parse and verify the explicit ID survived
-	requests, _ := Parse([]byte(serialized))
+	requests, _, _ := Parse([]byte(serialized))
 	if len(requests) != 1 {
 		t.Fatalf("Expected 1 request, got %d", len(requests))
 	}
@@ -672,7 +672,7 @@ func TestAddRequest(t *testing.T) {
 	}
 
 	// Read back
-	requests, err := ParseFile(filepath)
+	requests, _, err := ParseFile(filepath)
 	if err != nil {
 		t.Fatalf("ParseFile failed: %v", err)
 	}
@@ -703,7 +703,7 @@ func TestAddRequest_Multiple(t *testing.T) {
 	AddRequest(filepath, req1)
 	AddRequest(filepath, req2)
 
-	requests, _ := ParseFile(filepath)
+	requests, _, _ := ParseFile(filepath)
 	if len(requests) != 2 {
 		t.Fatalf("Expected 2 requests, got %d", len(requests))
 	}
@@ -730,7 +730,7 @@ func TestUpdateRequest(t *testing.T) {
 	AddRequest(filepath, original)
 
 	// Parse to get the auto-generated ID
-	requests, _ := ParseFile(filepath)
+	requests, _, _ := ParseFile(filepath)
 	originalID := requests[0].ID
 
 	// Update it
@@ -746,7 +746,7 @@ func TestUpdateRequest(t *testing.T) {
 	}
 
 	// Verify
-	requests, _ = ParseFile(filepath)
+	requests, _, _ = ParseFile(filepath)
 	if len(requests) != 1 {
 		t.Fatalf("Expected 1 request after update, got %d", len(requests))
 	}
@@ -791,7 +791,7 @@ func TestDeleteRequest(t *testing.T) {
 	AddRequest(filepath, req2)
 
 	// Parse to find the ID of the one to delete
-	requests, _ := ParseFile(filepath)
+	requests, _, _ := ParseFile(filepath)
 	var removeID string
 	for _, r := range requests {
 		if r.Title == "Remove" {
@@ -805,7 +805,7 @@ func TestDeleteRequest(t *testing.T) {
 		t.Fatalf("DeleteRequest failed: %v", err)
 	}
 
-	requests, _ = ParseFile(filepath)
+	requests, _, _ = ParseFile(filepath)
 	if len(requests) != 1 {
 		t.Fatalf("Expected 1 request after delete, got %d", len(requests))
 	}

@@ -26,3 +26,13 @@ type APIResponse struct {
 	Headers     map[string][]string
 	ContentType string // json, xml, html, text, javascript, css, form, raw
 }
+
+// Collection represents a single Markdown file containing multiple API requests.
+// Auth is the collection-level authorization — if a request has no Auth of its
+// own, it falls back to this one (cascading inheritance).
+type Collection struct {
+	Name     string
+	FilePath string
+	Auth     *Auth
+	Requests []APIRequest
+}

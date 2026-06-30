@@ -16,27 +16,28 @@ import (
 )
 
 // ParseFile reads a markdown file from disk, parses the AST, and extracts all
-// valid HTTP request blocks into a slice of models.APIRequest.
-func ParseFile(filepath string) ([]models.APIRequest, error) {
+// valid HTTP request blocks and the global Collection-level Auth.
+func ParseFile(filepath string) ([]models.APIRequest, *models.Auth, error) {
 	content, err := os.ReadFile(filepath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read file: %w", err)
+		return nil, nil, fmt.Errorf("failed to read file: %w", err)
 	}
 
 	return Parse(content)
 }
 
 // Parse reads markdown content from a byte slice, parses the AST, and extracts
-// all valid HTTP request blocks.
-func Parse(content []byte) ([]models.APIRequest, error) {
+// all valid HTTP request blocks and the global Collection-level Auth.
+func Parse(content []byte) ([]models.APIRequest, *models.Auth, error) {
 	md := goldmark.New()
 	reader := text.NewReader(content)
 	doc := md.Parser().Parse(reader)
 
 	var requests []models.APIRequest
 	var currentTitle string
+	var globalAuth *models.Auth
 
-	// Walk the AST looking for Headings (Titles) and FencedCodeBlocks (HTTP requests)
+	// Walk the AST looking for Headings, FencedCodeBlocks, and Paragraphs
 	err := ast.Walk(doc, func(node ast.Node, entering bool) (ast.WalkStatus, error) {
 		if !entering {
 			return ast.WalkContinue, nil
@@ -47,11 +48,25 @@ func Parse(content []byte) ([]models.APIRequest, error) {
 			// Capture the text of the heading to use as the title for the next API request
 			currentTitle = string(n.Text(content))
 
+		case *ast.Paragraph:
+			// Scan standard paragraphs for global directives like @auth
+			lines := n.Lines()
+			for i := 0; i < lines.Len(); i++ {
+				seg := lines.At(i)
+				line := strings.TrimSpace(string(seg.Value(content)))
+				if strings.HasPrefix(line, "@auth") {
+					if auth, err := extractAuth(line); err == nil {
+						globalAuth = auth
+					} else {
+						fmt.Printf("Warning: invalid global auth: %v\n", err)
+					}
+				}
+			}
+
 		case *ast.FencedCodeBlock:
 			// Only process code blocks labeled with ```http
 			lang := string(n.Language(content))
 			if strings.ToLower(lang) == "http" {
-				// Extract the raw text inside the code block
 				var rawText bytes.Buffer
 				lines := n.Lines()
 				for i := 0; i < lines.Len(); i++ {
@@ -61,7 +76,6 @@ func Parse(content []byte) ([]models.APIRequest, error) {
 
 				req, err := parseHTTPBlock(currentTitle, rawText.String())
 				if err != nil {
-					// Log the error but continue parsing other blocks
 					fmt.Printf("Warning: Failed to parse HTTP block '%s': %v\n", currentTitle, err)
 				} else {
 					requests = append(requests, req)
@@ -73,10 +87,10 @@ func Parse(content []byte) ([]models.APIRequest, error) {
 	})
 
 	if err != nil {
-		return nil, fmt.Errorf("error traversing markdown AST: %w", err)
+		return nil, nil, fmt.Errorf("error traversing markdown AST: %w", err)
 	}
 
-	return requests, nil
+	return requests, globalAuth, nil
 }
 
 // parseHTTPBlock translates the raw text inside an ```http block into an APIRequest.
@@ -106,14 +120,11 @@ func parseHTTPBlock(title, block string) (models.APIRequest, error) {
 		req.URL = parts[1]
 	}
 
-	// Track whether an explicit @id was provided
 	var explicitID string
 
-	// Read the rest of the lines
 	for scanner.Scan() {
 		line := scanner.Text()
 
-		// Once we hit a blank line, everything else is the body
 		if isBody {
 			bodyBuilder.WriteString(line + "\n")
 			continue
@@ -125,9 +136,7 @@ func parseHTTPBlock(title, block string) (models.APIRequest, error) {
 			continue
 		}
 
-		// Handle @ directives
 		if strings.HasPrefix(trimmedLine, "@") {
-			// Capture @id before parseDirective consumes it
 			parts := strings.Fields(trimmedLine)
 			if len(parts) >= 2 && parts[0] == "@id" {
 				explicitID = strings.Join(parts[1:], " ")
@@ -136,7 +145,6 @@ func parseHTTPBlock(title, block string) (models.APIRequest, error) {
 			continue
 		}
 
-		// Handle standard HTTP Headers (Key: Value)
 		if colonIdx := strings.Index(trimmedLine, ":"); colonIdx != -1 {
 			key := strings.TrimSpace(trimmedLine[:colonIdx])
 			value := strings.TrimSpace(trimmedLine[colonIdx+1:])
@@ -146,7 +154,6 @@ func parseHTTPBlock(title, block string) (models.APIRequest, error) {
 
 	req.Body = strings.TrimSuffix(bodyBuilder.String(), "\n")
 
-	// Assign a stable ID: explicit @id wins, otherwise hash of title+method+URL
 	if explicitID != "" {
 		req.ID = explicitID
 	} else {
@@ -156,18 +163,62 @@ func parseHTTPBlock(title, block string) (models.APIRequest, error) {
 	return req, nil
 }
 
-// generateID creates a stable, short identifier from request metadata.
 func generateID(title, method, urlStr string) string {
 	h := fnv.New64a()
 	h.Write([]byte(title + "|" + method + "|" + urlStr))
-	return fmt.Sprintf("req-%x", h.Sum64())[:15] // e.g. "req-a1b2c3d4e5f6"
+	return fmt.Sprintf("req-%x", h.Sum64())[:15]
 }
 
-// parseDirective processes @query, @auth, @header, and @id lines and mutates the request.
+// extractAuth is a reusable helper to parse an @auth line into a *models.Auth.
+func extractAuth(line string) (*models.Auth, error) {
+	parts := strings.Fields(line)
+	if len(parts) < 2 {
+		return nil, fmt.Errorf("missing auth type")
+	}
+
+	authType := parts[1]
+	params := make(map[string]string)
+
+	switch authType {
+	case "bearer":
+		if len(parts) >= 3 {
+			params["token"] = strings.Join(parts[2:], " ")
+		}
+	case "basic":
+		if len(parts) >= 4 {
+			params["username"] = parts[2]
+			params["password"] = parts[3]
+		}
+	case "apikey":
+		if len(parts) >= 3 {
+			params["key"] = parts[2]
+		}
+		if len(parts) >= 4 {
+			params["header"] = parts[3]
+		}
+	case "custom":
+		if len(parts) >= 3 {
+			params["prefix"] = parts[2]
+		}
+		if len(parts) >= 4 {
+			params["token"] = strings.Join(parts[3:], " ")
+		}
+	case "cookie":
+		if len(parts) >= 4 {
+			params["name"] = parts[2]
+			params["value"] = strings.Join(parts[3:], " ")
+		}
+	default:
+		return nil, fmt.Errorf("unknown auth type '%s'", authType)
+	}
+
+	return httpclient.FillAuth(authType, params)
+}
+
 func parseDirective(line string, req *models.APIRequest) {
 	parts := strings.Fields(line)
 	if len(parts) < 2 {
-		return // ignore malformed directives
+		return
 	}
 
 	directive := parts[0]
@@ -179,9 +230,7 @@ func parseDirective(line string, req *models.APIRequest) {
 			value := strings.Join(parts[2:], " ")
 			req.QueryParams[key] = value
 		}
-
 	case "@header":
-		// Syntax: @header Key: Value  or  @header Key Value
 		rest := strings.TrimSpace(line[len("@header"):])
 		if colonIdx := strings.Index(rest, ":"); colonIdx != -1 {
 			key := strings.TrimSpace(rest[:colonIdx])
@@ -193,53 +242,13 @@ func parseDirective(line string, req *models.APIRequest) {
 				req.Headers[fields[0]] = strings.Join(fields[1:], " ")
 			}
 		}
-
 	case "@id":
 		// Already captured in parseHTTPBlock; no-op here
-
 	case "@auth":
-		authType := parts[1]
-		params := make(map[string]string)
-
-		switch authType {
-		case "bearer":
-			if len(parts) >= 3 {
-				params["token"] = strings.Join(parts[2:], " ")
-			}
-		case "basic":
-			if len(parts) >= 4 {
-				params["username"] = parts[2]
-				params["password"] = parts[3]
-			}
-		case "apikey":
-			if len(parts) >= 3 {
-				params["key"] = parts[2]
-			}
-			if len(parts) >= 4 {
-				params["header"] = parts[3]
-			}
-		case "custom":
-			if len(parts) >= 3 {
-				params["prefix"] = parts[2]
-			}
-			if len(parts) >= 4 {
-				params["token"] = strings.Join(parts[3:], " ")
-			}
-		case "cookie":
-			if len(parts) >= 4 {
-				params["name"] = parts[2]
-				params["value"] = strings.Join(parts[3:], " ")
-			}
-		default:
-			fmt.Printf("Warning: unknown auth type '%s'\n", authType)
-			return
-		}
-
-		auth, err := httpclient.FillAuth(authType, params)
-		if err != nil {
-			fmt.Printf("Warning: invalid auth '%s': %v\n", authType, err)
-		} else {
+		if auth, err := extractAuth(line); err == nil {
 			req.Auth = auth
+		} else {
+			fmt.Printf("Warning: invalid auth: %v\n", err)
 		}
 	}
 }
@@ -346,7 +355,7 @@ func SaveAll(filepath string, requests []models.APIRequest) error {
 // UpdateRequest reads a markdown file, finds the request with the given ID,
 // replaces it, and writes the file back.
 func UpdateRequest(filepath string, id string, updated models.APIRequest) error {
-	requests, err := ParseFile(filepath)
+	requests, _, err := ParseFile(filepath)
 	if err != nil {
 		return fmt.Errorf("failed to parse file: %w", err)
 	}
@@ -371,7 +380,7 @@ func UpdateRequest(filepath string, id string, updated models.APIRequest) error 
 // DeleteRequest reads a markdown file, removes the request with the given ID,
 // and writes the file back.
 func DeleteRequest(filepath string, id string) error {
-	requests, err := ParseFile(filepath)
+	requests, _, err := ParseFile(filepath)
 	if err != nil {
 		return fmt.Errorf("failed to parse file: %w", err)
 	}
