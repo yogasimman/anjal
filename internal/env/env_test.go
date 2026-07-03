@@ -18,9 +18,13 @@ func TestResolve(t *testing.T) {
 		expected string
 	}{
 		{"single placeholder", "{{.BASE_URL}}/users", "https://api.example.com/users"},
+		{"whitespace inside", "{{ .BASE_URL }}/users", "https://api.example.com/users"},
+		{"trailing space", "{{.BASE_URL }}/users", "https://api.example.com/users"},
+		{"leading space", "{{ .BASE_URL}}/users", "https://api.example.com/users"},
 		{"multiple placeholders", "{{.BASE_URL}}/users?token={{.TOKEN}}", "https://api.example.com/users?token=abc123"},
 		{"no placeholders", "https://example.com", "https://example.com"},
 		{"empty string", "", ""},
+		{"unmatched placeholder", "{{.MISSING}}/path", "{{.MISSING}}/path"},
 	}
 
 	for _, tt := range tests {
@@ -68,8 +72,8 @@ func TestLoadForCollectionOverride(t *testing.T) {
 	// Global env
 	os.WriteFile(filepath.Join(home, ".env"), []byte("KEY=global\nGLOBAL_ONLY=hello\n"), 0644)
 
-	// Collection-specific env (collection.md -> collection.env)
-	os.WriteFile(filepath.Join(home, "myapi.env"), []byte("KEY=override\n"), 0644)
+	// Collection-specific env (collection.md -> .collection.env)
+	os.WriteFile(filepath.Join(home, ".myapi.env"), []byte("KEY=override\n"), 0644)
 
 	vars, err := LoadForCollection("myapi")
 	if err != nil {
@@ -94,7 +98,7 @@ func TestLoadForCollectionWithMdExtension(t *testing.T) {
 	os.MkdirAll(home, 0755)
 
 	os.WriteFile(filepath.Join(home, ".env"), []byte("KEY=global\n"), 0644)
-	os.WriteFile(filepath.Join(home, "myapi.env"), []byte("KEY=collection\n"), 0644)
+	os.WriteFile(filepath.Join(home, ".myapi.env"), []byte("KEY=collection\n"), 0644)
 
 	// collection name with .md suffix should be stripped
 	vars, err := LoadForCollection("myapi.md")
@@ -118,7 +122,7 @@ func TestSaveNewKey(t *testing.T) {
 		t.Fatalf("Save() error: %v", err)
 	}
 
-	data, err := os.ReadFile(filepath.Join(home, "myapi.env"))
+	data, err := os.ReadFile(filepath.Join(home, ".myapi.env"))
 	if err != nil {
 		t.Fatalf("ReadFile error: %v", err)
 	}
@@ -135,7 +139,7 @@ func TestSaveExistingKey(t *testing.T) {
 	home := filepath.Join(workspace, ".anjal")
 	os.MkdirAll(home, 0755)
 
-	os.WriteFile(filepath.Join(home, "myapi.env"), []byte("KEY=old_value\nOTHER=keep\n"), 0644)
+	os.WriteFile(filepath.Join(home, ".myapi.env"), []byte("KEY=old_value\nOTHER=keep\n"), 0644)
 
 	err := Save("myapi", "KEY", "updated_value")
 	if err != nil {
@@ -161,7 +165,7 @@ func TestDeleteKey(t *testing.T) {
 	home := filepath.Join(workspace, ".anjal")
 	os.MkdirAll(home, 0755)
 
-	os.WriteFile(filepath.Join(home, "myapi.env"), []byte("KEY=value\nOTHER=keep\nKEEP=stay\n"), 0644)
+	os.WriteFile(filepath.Join(home, ".myapi.env"), []byte("KEY=value\nOTHER=keep\nKEEP=stay\n"), 0644)
 
 	err := Delete("myapi", "KEY")
 	if err != nil {

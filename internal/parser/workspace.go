@@ -17,13 +17,13 @@ func LoadWorkspace() ([]models.Collection, error) {
 		return nil, fmt.Errorf("failed to resolve workspace: %w", err)
 	}
 
-	return loadWorkspaceFrom(workspacePath)
+	return LoadWorkspaceFrom(workspacePath)
 }
 
-// loadWorkspaceFrom scans a specific directory for .md files and parses them.
+// LoadWorkspaceFrom scans a specific directory for .md files and parses them.
 // It also wires up collection-level auth: if a request has no Auth of its own
 // but the collection has a global Auth, the request inherits it.
-func loadWorkspaceFrom(dir string) ([]models.Collection, error) {
+func LoadWorkspaceFrom(dir string) ([]models.Collection, error) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read workspace directory: %w", err)
@@ -84,10 +84,12 @@ func findOrCreateWorkspace() (string, error) {
 			return localHidden, nil
 		}
 		// Check local anjal/
+
 		localVisible := filepath.Join(cwd, "anjal")
 		if info, err := os.Stat(localVisible); err == nil && info.IsDir() {
 			return localVisible, nil
 		}
+
 	}
 
 	// Fallback to Global Workspace (~/.anjal)
@@ -110,7 +112,7 @@ func findOrCreateWorkspace() (string, error) {
 	}
 
 	// Create a friendly default file for new users
-	err = createWelcomeFile(globalPath)
+	err = CreateWelcomeFile(globalPath)
 	if err != nil {
 		return "", fmt.Errorf("failed to create welcome file: %w", err)
 	}
@@ -118,8 +120,8 @@ func findOrCreateWorkspace() (string, error) {
 	return globalPath, nil
 }
 
-// createWelcomeFile drops a default markdown file into a newly created workspace
-func createWelcomeFile(workspacePath string) error {
+// CreateWelcomeFile drops a default markdown file into a newly created workspace
+func CreateWelcomeFile(workspacePath string) error {
 	welcomePath := filepath.Join(workspacePath, "welcome.md")
 
 	content := []byte(`# Welcome to Anjal

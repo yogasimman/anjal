@@ -1,0 +1,108 @@
+<div align="center">
+  <h1>🕊️ Anjal</h1>
+  <p><strong>A modern, keyboard-driven API testing tool for the terminal.</strong></p>
+</div>
+
+Anjal is a powerful Terminal User Interface (TUI) application designed for developers who love staying in their terminal. It acts as a lightweight Postman alternative, allowing you to organize, edit, and execute HTTP requests purely from the CLI. 
+
+Our goal with Anjal is to bridge the gap between traditional UI-heavy API clients and automation-friendly scripts, creating an environment that is heavily geared towards developer experience, automation, and speed.
+
+---
+
+## Installation
+
+Because Anjal is built in Go, you can install it instantly and use it anywhere in your terminal by running:
+
+```bash
+go install github.com/yogasimman/anjal/cmd/anjal@latest
+```
+
+*Note: Ensure your `~/go/bin` is in your system's `$PATH` so you can simply type `anjal` into your terminal!*
+
+---
+
+## The UI
+
+Anjal's UI is designed with a sleek, rigid three-pane layout that maximizes terminal real estate and is driven entirely by keyboard shortcuts:
+- **Left Panel (Sidebar)**: Your API Collection navigator. Lists all endpoints in your active `.md` file.
+- **Top Right (Request Detail)**: The active request viewer and editor, showcasing HTTP methods, URLs, Headers, and JSON Body.
+- **Bottom Right (Response)**: Streams the response JSON (prettified) with Status Codes and Latency information.
+
+> *![Anjal Main UI](docs/assets/ui-main.png)*
+> *(Tip: Replace this with a screenshot of the main Anjal UI)*
+
+## Workspace & Collections (`.anjal/`)
+
+Anjal intelligently detects your workspace. By default, it searches for a `.anjal/` directory in your current path. 
+Inside this directory, Anjal reads Markdown (`.md`) files, treating each file as a distinct **Collection** of API requests.
+
+When you run `anjal`, it will parse these `.md` files and populate your left sidebar.
+
+## The `.md` File Format
+
+Anjal stores all API collections as Markdown files, making them portable, version-controllable, and easily editable without the UI. 
+A request is defined using standard Markdown headers and codeblocks. 
+
+Here is how you can create an API block manually:
+
+```markdown
+# Get Workforce Data
+
+```http
+POST http://localhost:3001/api/v5/leaveManagement/getWorkforceData
+@id req-12345
+Content-Type: application/json
+
+{
+  "page": 1,
+  "pageSize": 10,
+  "status": "PENDING"
+}
+```
+```
+
+> **Note**: A separate `prompt.md` document will discuss this schema in greater detail, specifically on how AI assistants can automatically generate these files for testing purposes.
+
+## Navigation and Editing
+
+Anjal is completely keyboard friendly. You can fluidly move between different sections of the app using intuitive keybinds:
+- **`Tab` / `Shift+Tab`**: Cycle focus through the Sidebar, Request Pane, and Response Pane.
+- **`Up/Down` or `j/k`**: Scroll through lists and JSON responses.
+- **`e`**: Enter **Edit Mode** on the focused request. This opens an inline form where you can tweak the URL, Body, Headers, etc. 
+
+> *![Edit Mode](docs/assets/ui-edit.png)*
+
+## Global Authentication
+
+Instead of attaching tokens to every individual request, Anjal supports Collection-level Auth.
+- Press **`a`** to open the Authentication Modal.
+- Specify your Auth Type (e.g., `bearer`) and your token.
+- This token is saved to the environment and automatically injected into every request executed in that collection.
+
+> *![Auth Modal](docs/assets/ui-auth.png)*
+
+## Multi-Run Execution
+
+Need to run an entire suite of tests at once? Anjal's Multi-Run feature behaves like a full test runner.
+- Press **`r`** (Run All).
+- The Request and Response panels collapse into a single unified dashboard.
+- Anjal sequentially fires all APIs in the collection and streams detailed results—including Method, URL, precise Latency, Status Colors, and the prettified Response Body—into the view.
+- *You can also press `Spacebar` on specific requests to select a subset to run!*
+
+> *![Multi Run Results](docs/assets/ui-multirun.png)*
+
+## Headless Mode (`--noui`)
+
+For CI/CD pipelines or users who just want quick terminal output, Anjal supports a Headless execution mode.
+
+**Interactive CLI:**
+```bash
+go run ./cmd/anjal --noui
+```
+This discovers your collections, prints them to stdout, and prompts you to select one by number.
+
+**Direct Execution:**
+```bash
+go run ./cmd/anjal --noui cmd/anjal/.anjal/leave_management.md
+```
+This immediately parses the specified file, executes all endpoints sequentially, prints the detailed formatted output directly to the terminal, and exits.

@@ -1,10 +1,12 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -15,8 +17,24 @@ import (
 	"github.com/yogasimman/anjal/internal/tui"
 )
 
+var Version = "v1.0.0-dev"
+
 func main() {
 	args := os.Args[1:]
+	
+	noUI := false
+	var filteredArgs []string
+	for _, arg := range args {
+		if arg == "-v" || arg == "--version" {
+			fmt.Printf("Anjal %s\n", Version)
+			return
+		} else if arg == "--noui" {
+			noUI = true
+		} else {
+			filteredArgs = append(filteredArgs, arg)
+		}
+	}
+	args = filteredArgs
 
 	var collections []models.Collection
 	var err error
@@ -24,6 +42,11 @@ func main() {
 	if len(args) >= 1 {
 		// Specific file mode
 		path := args[0]
+		if noUI {
+			runFile(path)
+			return
+		}
+		
 		if _, statErr := os.Stat(path); statErr == nil {
 			requests, globalAuth, parseErr := parser.ParseFile(path)
 			if parseErr != nil {
@@ -57,19 +80,41 @@ func main() {
 			fmt.Fprintf(os.Stderr, "Error loading workspace: %v\n", err)
 			os.Exit(1)
 		}
+		
+		if noUI {
+			if len(collections) == 0 {
+				fmt.Println("No API collections found in workspace.")
+				return
+			}
+			fmt.Println("Available Collections:")
+			for i, col := range collections {
+				fmt.Printf("[%d] %s\n", i+1, col.Name)
+			}
+			fmt.Print("\nSelect a collection to run (1-", len(collections), "): ")
+			
+			reader := bufio.NewReader(os.Stdin)
+			input, _ := reader.ReadString('\n')
+			input = strings.TrimSpace(input)
+			idx, err := strconv.Atoi(input)
+			if err == nil && idx >= 1 && idx <= len(collections) {
+				fmt.Println()
+				runFile(collections[idx-1].FilePath)
+			} else {
+				fmt.Println("Invalid selection.")
+				os.Exit(1)
+			}
+			return
+		}
 	}
 
-	if len(collections) == 0 {
-		fmt.Println("No API collections found in ~/.anjal/ or the specified file.")
-		fmt.Println("Create a .md file with HTTP blocks to get started.")
-		return
+	var envVars map[string]string
+	if len(collections) > 0 {
+		envVars, _ = env.LoadForCollection(filepath.Base(collections[0].FilePath))
 	}
-
-	envVars, _ := env.LoadForCollection(filepath.Base(collections[0].FilePath))
 
 	isWorkspace := len(args) == 0
 	m := tui.InitialModel(collections, envVars, isWorkspace)
-	p := tea.NewProgram(m, tea.WithAltScreen())
+	p := tea.NewProgram(m, tea.WithAltScreen(), tea.WithMouseCellMotion())
 	if _, err := p.Run(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
@@ -135,7 +180,18 @@ func resolveRequest(req *models.APIRequest, vars map[string]string) {
 	for k, v := range req.QueryParams {
 		req.QueryParams[k] = env.Resolve(v, vars)
 	}
-	if req.Auth != nil {
+	// Force override Auth if workspace configured it
+	authType := vars["WORKSPACE_AUTH_TYPE"]
+	if authType != "" && authType != "none" {
+		params := make(map[string]string)
+		for k, v := range vars {
+			if strings.HasPrefix(k, "WORKSPACE_AUTH_") && k != "WORKSPACE_AUTH_TYPE" {
+				key := strings.ToLower(strings.TrimPrefix(k, "WORKSPACE_AUTH_"))
+				params[key] = v
+			}
+		}
+		req.Auth = &models.Auth{Type: authType, Params: params}
+	} else if req.Auth != nil {
 		for k, v := range req.Auth.Params {
 			req.Auth.Params[k] = env.Resolve(v, vars)
 		}

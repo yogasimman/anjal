@@ -105,6 +105,10 @@ func applyAuth(req *http.Request, auth *models.Auth) error {
 	case "bearer":
 		token, ok := auth.Params["token"]
 		if ok && token != "" {
+			token = strings.TrimSpace(token)
+			if strings.HasPrefix(strings.ToLower(token), "bearer ") {
+				token = strings.TrimSpace(token[7:])
+			}
 			req.Header.Set("Authorization", "Bearer "+token)
 		}
 	case "basic":

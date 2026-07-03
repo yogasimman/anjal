@@ -1,0 +1,19 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html, body, #root {
+    @apply h-full w-full bg-slate-900 text-slate-50 font-sans;
+  }
+}
+
+@layer components {
+  .glass-panel {
+    @apply bg-slate-800/70 backdrop-blur-md border border-white/10 rounded-2xl;
+  }
+  
+  .text-gradient {
+    @apply bg-gradient-to-br from-blue-400 to-violet-500 bg-clip-text text-transparent;
+  }
+}
