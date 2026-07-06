@@ -1,0 +1,102 @@
+name: Release Anjal
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        include:
+          - os: ubuntu-latest
+            artifact_name: anjal-linux-amd64
+            wails_platform: linux/amd64
+          - os: macos-latest
+            artifact_name: anjal-macos.app
+            wails_platform: darwin/universal
+          - os: windows-latest
+            artifact_name: anjal-windows.exe
+            wails_platform: windows/amd64
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Linux Dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev build-essential pkg-config
+
+      - name: Install Wails CLI
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
+
+      - name: Build TUI (All Platforms)
+        run: go build -o anjal-cli${{ runner.os == 'Windows' && '.exe' || '' }} ./cmd/anjal
+
+      - name: Build macOS DMG
+        if: runner.os == 'macOS'
+        working-directory: gui
+        run: |
+          # 1. Build GUI App Bundle
+          wails build -platform darwin/universal
+          
+          # 2. Build TUI CLI
+          cd ..
+          go build -o anjal-cli ./cmd/anjal
+          
+          # 3. Create DMG
+          npm install -g appdmg
+          appdmg appdmg.json Anjal-macOS.dmg
+
+      - name: Build GUI (Linux/Windows)
+        if: runner.os != 'macOS'
+        working-directory: gui
+        run: |
+          wails build -platform ${{ matrix.wails_platform }}
+
+      - name: Package Windows NSIS Installer
+        if: runner.os == 'Windows'
+        working-directory: gui
+        run: wails build -nsis
+
+      - name: Upload GUI Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: |
+            gui/build/bin/
+            anjal-cli*
+            Anjal-macOS.dmg
+            !gui/build/bin/**/*.txt
+
+  release:
+    name: Create GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/**/*

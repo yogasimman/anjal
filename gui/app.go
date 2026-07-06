@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Yogasimman Ravisagar
+// This software is released under the MIT License.
+// https://opensource.org/licenses/MIT
+
 package main
 
 import (
@@ -5,8 +9,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
+	"github.com/yogasimman/anjal/internal/env"
 	"github.com/yogasimman/anjal/internal/httpclient"
 	"github.com/yogasimman/anjal/internal/models"
 	"github.com/yogasimman/anjal/internal/parser"
@@ -65,7 +71,7 @@ func (a *App) PromptOpenWorkspace() (string, error) {
 		parser.CreateWelcomeFile(anjalDir)
 	}
 
-	return dir, nil
+	return anjalDir, nil
 }
 
 // ExecuteRequest executes a given API request and returns the response.
@@ -135,4 +141,74 @@ func (a *App) DeleteRequest(collectionPath string, reqID string) error {
 // DeleteCollection deletes a markdown collection file.
 func (a *App) DeleteCollection(collectionPath string) error {
 	return os.Remove(collectionPath)
+}
+
+// CreateCollection creates a new markdown collection file in the specified workspace.
+func (a *App) CreateCollection(workspaceDir, name string) error {
+	if name == "" {
+		return fmt.Errorf("collection name cannot be empty")
+	}
+	if !strings.HasSuffix(name, ".md") {
+		name += ".md"
+	}
+	
+	// If workspaceDir is empty or ".", try to find the active workspace
+	if workspaceDir == "" || workspaceDir == "." {
+		ws, err := env.ResolveWriteDir()
+		if err == nil && ws != "" {
+			workspaceDir = ws
+		} else {
+			// Fallback to the default workspace
+			home, _ := os.UserHomeDir()
+			workspaceDir = filepath.Join(home, ".anjal")
+		}
+	}
+
+	filePath := filepath.Join(workspaceDir, name)
+	if _, err := os.Stat(filePath); err == nil {
+		return fmt.Errorf("collection file already exists")
+	}
+
+	// Add a dummy request so the parser picks it up as a valid collection
+	content := fmt.Sprintf("# %s\n\n```http\nGET https://api.example.com\n```\n", strings.TrimSuffix(name, ".md"))
+	return os.WriteFile(filePath, []byte(content), 0644)
+}
+
+// LoadEnvForCollection loads environment variables scoped to a specific collection.
+func (a *App) LoadEnvForCollection(collectionName string) (map[string]string, error) {
+	return env.LoadForCollection(collectionName)
+}
+
+// SaveEnvForCollection saves a specific environment variable for a collection.
+func (a *App) SaveEnvForCollection(collectionName, key, value string) error {
+	return env.Save(collectionName, key, value)
+}
+
+// DeleteEnvForCollection deletes a specific environment variable for a collection.
+func (a *App) DeleteEnvForCollection(collectionName, key string) error {
+	return env.Delete(collectionName, key)
+}
+
+// PromptSaveFilePath prompts the user for a save location and returns the chosen filepath.
+func (a *App) PromptSaveFilePath(title, defaultName string) (string, error) {
+	filePath, err := runtime.SaveFileDialog(a.ctx, runtime.SaveDialogOptions{
+		Title:           title,
+		DefaultFilename: defaultName,
+		Filters: []runtime.FileFilter{
+			{DisplayName: "JSON Files (*.json)", Pattern: "*.json"},
+			{DisplayName: "Text Files (*.txt)", Pattern: "*.txt"},
+			{DisplayName: "Markdown Files (*.md)", Pattern: "*.md"},
+		},
+	})
+
+	if err != nil {
+		return "", err
+	}
+
+	return filePath, nil
+}
+
+// WriteFile writes the given content to the specified filepath.
+func (a *App) WriteFile(filePath, content string) error {
+	return os.WriteFile(filePath, []byte(content), 0644)
 }

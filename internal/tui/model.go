@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Yogasimman Ravisagar
+// This software is released under the MIT License.
+// https://opensource.org/licenses/MIT
+
 package tui
 
 import (
@@ -55,6 +59,7 @@ type AppModel struct {
 	requests       []models.APIRequest
 	activeRequest  *models.APIRequest
 	response       *models.APIResponse
+	responseCache  map[string]*models.APIResponse
 	err            error
 
 	envVars map[string]string
@@ -82,6 +87,7 @@ type AppModel struct {
 	editBody    textarea.Model
 	editHeaders textarea.Model
 	editParams  textarea.Model
+	editAuth    textarea.Model
 	editActive  int
 	reqSubFocus int // 0 = TopBar (Method/URL), 1 = TabContent (Body/Headers/Params)
 
@@ -107,6 +113,7 @@ type AppModel struct {
 	multiRunIndex    int
 
 	startWithCollections bool
+	singleFilePath       string
 }
 
 // requestItem wraps an APIRequest for the bubble list.
@@ -187,7 +194,7 @@ func (d customDelegate) Render(w io.Writer, m list.Model, index int, listItem li
 }
 
 // InitialModel builds the AppModel from parsed collections.
-func InitialModel(collections []models.Collection, envVars map[string]string, isWorkspace bool) AppModel {
+func InitialModel(collections []models.Collection, envVars map[string]string, singleFilePath string) AppModel {
 	// Auth inputs
 	at := textinput.New()
 	at.Placeholder = "bearer / basic / apikey / cookie"
@@ -258,6 +265,11 @@ func InitialModel(collections []models.Collection, envVars map[string]string, is
 		envVars = make(map[string]string)
 	}
 
+	editAuth := textarea.New()
+	editAuth.ShowLineNumbers = false
+	editAuth.Placeholder = "Type args separated by space: e.g. bearer {{TOKEN}} or basic admin {{PASS}}"
+	editAuth.CharLimit = 0
+	
 	m := AppModel{
 		collections:  collections,
 		envVars:      envVars,
@@ -275,12 +287,14 @@ func InitialModel(collections []models.Collection, envVars map[string]string, is
 		editBody:     eb,
 		editHeaders:  eh,
 		editParams:   ep,
+		editAuth:     editAuth,
 		reqTab:       ReqTabBody,
 		resTab:       ResTabBody,
 		focus:        FocusSplash,
 		selectedRequests: make(map[string]bool),
 		splashTicks:  0,
-		startWithCollections: isWorkspace,
+		startWithCollections: singleFilePath == "",
+		singleFilePath:       singleFilePath,
 	}
 
 	m.rebuildSidebar()
@@ -359,18 +373,22 @@ func resolveRequest(req *models.APIRequest, vars map[string]string) {
 		req.QueryParams[k] = env.Resolve(v, vars)
 	}
 	
-	// Force override Auth if workspace configured it
-	authType := vars["WORKSPACE_AUTH_TYPE"]
-	if authType != "" && authType != "none" {
-		params := make(map[string]string)
-		for k, v := range vars {
-			if strings.HasPrefix(k, "WORKSPACE_AUTH_") && k != "WORKSPACE_AUTH_TYPE" {
-				key := strings.ToLower(strings.TrimPrefix(k, "WORKSPACE_AUTH_"))
-				params[key] = v
+	// Resolve authentication
+	if req.Auth == nil {
+		authType := vars["WORKSPACE_AUTH_TYPE"]
+		if authType != "" && authType != "none" {
+			params := make(map[string]string)
+			for k, v := range vars {
+				if strings.HasPrefix(k, "WORKSPACE_AUTH_") && k != "WORKSPACE_AUTH_TYPE" {
+					key := strings.ToLower(strings.TrimPrefix(k, "WORKSPACE_AUTH_"))
+					params[key] = v
+				}
 			}
+			req.Auth = &models.Auth{Type: authType, Params: params}
 		}
-		req.Auth = &models.Auth{Type: authType, Params: params}
-	} else if req.Auth != nil {
+	}
+	
+	if req.Auth != nil {
 		for k, v := range req.Auth.Params {
 			req.Auth.Params[k] = env.Resolve(v, vars)
 		}
@@ -382,4 +400,71 @@ func truncate(s string, max int) string {
 		return s
 	}
 	return s[:max-3] + "..."
+}
+
+func authToString(auth *models.Auth) string {
+	if auth == nil || auth.Type == "none" || auth.Type == "" {
+		return ""
+	}
+	var b strings.Builder
+	b.WriteString(auth.Type)
+	switch auth.Type {
+	case "bearer":
+		if t := auth.Params["token"]; t != "" { b.WriteString(" " + t) }
+	case "basic":
+		if u := auth.Params["username"]; u != "" { b.WriteString(" " + u) }
+		if p := auth.Params["password"]; p != "" { b.WriteString(" " + p) }
+	case "apikey":
+		if k := auth.Params["key"]; k != "" { b.WriteString(" " + k) }
+		if h := auth.Params["header"]; h != "" { b.WriteString(" " + h) }
+	case "custom":
+		if p := auth.Params["prefix"]; p != "" { b.WriteString(" " + p) }
+		if t := auth.Params["token"]; t != "" { b.WriteString(" " + t) }
+	case "cookie":
+		if n := auth.Params["name"]; n != "" { b.WriteString(" " + n) }
+		if v := auth.Params["value"]; v != "" { b.WriteString(" " + v) }
+	}
+	return b.String()
+}
+
+func stringToAuth(s string) *models.Auth {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return nil
+	}
+	parts := strings.Fields(s)
+	if len(parts) == 0 {
+		return nil
+	}
+	
+	authType := parts[0]
+	params := make(map[string]string)
+	
+	switch authType {
+	case "bearer":
+		if len(parts) >= 2 { params["token"] = strings.Join(parts[1:], " ") }
+	case "basic":
+		if len(parts) >= 3 {
+			params["username"] = parts[1]
+			params["password"] = parts[2]
+		}
+	case "apikey":
+		if len(parts) >= 2 { params["key"] = parts[1] }
+		if len(parts) >= 3 { params["header"] = parts[2] }
+	case "custom":
+		if len(parts) >= 2 { params["prefix"] = parts[1] }
+		if len(parts) >= 3 { params["token"] = strings.Join(parts[2:], " ") }
+	case "cookie":
+		if len(parts) >= 3 {
+			params["name"] = parts[1]
+			params["value"] = strings.Join(parts[2:], " ")
+		}
+	default:
+		// Fallback for custom or unknown types
+		for i := 1; i < len(parts); i++ {
+			params[fmt.Sprintf("param%d", i)] = parts[i]
+		}
+	}
+	
+	return &models.Auth{Type: authType, Params: params}
 }

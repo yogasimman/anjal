@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Yogasimman Ravisagar
+// This software is released under the MIT License.
+// https://opensource.org/licenses/MIT
+
 package tui
 
 import (
@@ -205,11 +209,17 @@ func formatResponse(m *AppModel, res *models.APIResponse) string {
 	switch m.resTab {
 	case ResTabBody:
 		if res.Body != "" {
-			var prettyJSON bytes.Buffer
-			if err := json.Indent(&prettyJSON, []byte(res.Body), "", "  "); err == nil {
-				b.WriteString(prettyJSON.String())
+			if res.ContentType == "image" || res.ContentType == "pdf" {
+				dataType := "Image"
+				if res.ContentType == "pdf" { dataType = "PDF" }
+				b.WriteString(lipgloss.NewStyle().Foreground(cMauve).Render(fmt.Sprintf("[ %s Data: %d bytes (Base64 Encoded) ]", dataType, len(res.Body))))
 			} else {
-				b.WriteString(res.Body)
+				var prettyJSON bytes.Buffer
+				if err := json.Indent(&prettyJSON, []byte(res.Body), "", "  "); err == nil {
+					b.WriteString(prettyJSON.String())
+				} else {
+					b.WriteString(formatCode(res.Body, res.ContentType))
+				}
 			}
 		} else {
 			b.WriteString(lipgloss.NewStyle().Foreground(cOverlay).Render("Empty response body"))
@@ -345,16 +355,7 @@ func (m AppModel) renderDetail(w, h int) string {
 	case ReqTabHeaders:
 		content = m.editHeaders.View()
 	case ReqTabAuth:
-		if req.Auth == nil {
-			content = lipgloss.NewStyle().Foreground(cOverlay).Render("Inheriting Workspace Auth.")
-		} else {
-			var hb strings.Builder
-			hb.WriteString(lipgloss.NewStyle().Foreground(cBlue).Render("Type: ") + req.Auth.Type + "\n")
-			for k, v := range req.Auth.Params {
-				hb.WriteString(fmt.Sprintf("%s: %s\n", k, v))
-			}
-			content = hb.String()
-		}
+		content = m.editAuth.View()
 	case ReqTabParams:
 		content = m.editParams.View()
 	}
@@ -427,6 +428,8 @@ func (m AppModel) renderInlineEdit(w, h int) string {
 			b.WriteString(lipgloss.NewStyle().Foreground(cMauve).Render("▸ Edit Headers (Key: Value):") + "\n" + m.editHeaders.View() + "\n")
 		case ReqTabParams:
 			b.WriteString(lipgloss.NewStyle().Foreground(cMauve).Render("▸ Edit Params (Key=Value):") + "\n" + m.editParams.View() + "\n")
+		case ReqTabAuth:
+			b.WriteString(lipgloss.NewStyle().Foreground(cMauve).Render("▸ Edit Auth (e.g. bearer {{TOKEN}}):") + "\n" + m.editAuth.View() + "\n")
 		}
 		
 		b.WriteString("\n" + lipgloss.NewStyle().Foreground(cOverlay).Render("ctrl+s: save  esc: cancel"))
@@ -543,7 +546,7 @@ func (m AppModel) renderHelp() string {
 	reqCount := len(m.requests)
 	stats := fmt.Sprintf(" 📁 %d collections   📝 %d requests", colCount, reqCount)
 
-	keys := []string{"TAB Cycle", "[ ] Tabs", "SPC Select", "R Run Selected", "RET Execute", "A Auth", "C Collections", "Y Copy", "Q Quit"}
+	keys := []string{"TAB Cycle", "[ ] Tabs", "SPC Select", "R Run Selected", "RET Execute", "A Auth", "c New Col", "d Delete Req", "D Delete Col", "Y Copy", "Q Quit"}
 	if m.showAuth {
 		keys = []string{"TAB Next Field", "RET Save", "ESC Cancel"}
 	} else if m.focus == FocusCollections {
@@ -566,4 +569,45 @@ func (m AppModel) renderHelp() string {
 	bottomLine := lipgloss.PlaceHorizontal(m.width, lipgloss.Left, " "+keyStr.String())
 	
 	return statusBarStyle.Render(topLine + "\n" + bottomLine)
+}
+
+func formatCode(code, contentType string) string {
+	if contentType == "html" || contentType == "xml" {
+		code = strings.ReplaceAll(code, "><", ">\n<")
+		lines := strings.Split(code, "\n")
+		var out []string
+		indent := 0
+		for _, line := range lines {
+			line = strings.TrimSpace(line)
+			if line == "" { continue }
+			if strings.HasPrefix(line, "</") && indent > 0 {
+				indent--
+			}
+			out = append(out, strings.Repeat("  ", indent)+line)
+			if strings.HasPrefix(line, "<") && !strings.HasPrefix(line, "</") && !strings.HasPrefix(line, "<!") && !strings.Contains(line, "/>") && !strings.Contains(line, "</") {
+				indent++
+			}
+		}
+		return strings.Join(out, "\n")
+	} else if contentType == "css" || contentType == "javascript" {
+		code = strings.ReplaceAll(code, "{", "{\n")
+		code = strings.ReplaceAll(code, "}", "\n}")
+		code = strings.ReplaceAll(code, ";", ";\n")
+		lines := strings.Split(code, "\n")
+		var out []string
+		indent := 0
+		for _, line := range lines {
+			line = strings.TrimSpace(line)
+			if line == "" { continue }
+			if strings.HasPrefix(line, "}") && indent > 0 {
+				indent--
+			}
+			out = append(out, strings.Repeat("  ", indent)+line)
+			if strings.HasSuffix(line, "{") {
+				indent++
+			}
+		}
+		return strings.Join(out, "\n")
+	}
+	return code
 }

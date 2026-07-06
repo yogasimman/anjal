@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Yogasimman Ravisagar
+// This software is released under the MIT License.
+// https://opensource.org/licenses/MIT
+
 package parser
 
 import (
@@ -78,6 +82,23 @@ func Parse(content []byte) ([]models.APIRequest, *models.Auth, error) {
 				if err != nil {
 					fmt.Printf("Warning: Failed to parse HTTP block '%s': %v\n", currentTitle, err)
 				} else {
+					// Ensure ID uniqueness
+					originalID := req.ID
+					counter := 1
+					for {
+						isDuplicate := false
+						for _, existingReq := range requests {
+							if existingReq.ID == req.ID {
+								isDuplicate = true
+								break
+							}
+						}
+						if !isDuplicate {
+							break
+						}
+						req.ID = fmt.Sprintf("%s-%d", originalID, counter)
+						counter++
+					}
 					requests = append(requests, req)
 				}
 			}
@@ -290,10 +311,41 @@ func RequestToMarkdown(req models.APIRequest) string {
 	}
 
 	// Auth
-	if req.Auth != nil {
+	if req.Auth != nil && req.Auth.Type != "none" {
 		b.WriteString("@auth " + req.Auth.Type)
-		for _, v := range req.Auth.Params {
-			b.WriteString(" " + v)
+		switch req.Auth.Type {
+		case "bearer":
+			if token := req.Auth.Params["token"]; token != "" {
+				b.WriteString(" " + token)
+			}
+		case "basic":
+			if u := req.Auth.Params["username"]; u != "" {
+				b.WriteString(" " + u)
+			}
+			if p := req.Auth.Params["password"]; p != "" {
+				b.WriteString(" " + p)
+			}
+		case "apikey":
+			if k := req.Auth.Params["key"]; k != "" {
+				b.WriteString(" " + k)
+			}
+			if h := req.Auth.Params["header"]; h != "" {
+				b.WriteString(" " + h)
+			}
+		case "custom":
+			if p := req.Auth.Params["prefix"]; p != "" {
+				b.WriteString(" " + p)
+			}
+			if t := req.Auth.Params["token"]; t != "" {
+				b.WriteString(" " + t)
+			}
+		case "cookie":
+			if n := req.Auth.Params["name"]; n != "" {
+				b.WriteString(" " + n)
+			}
+			if v := req.Auth.Params["value"]; v != "" {
+				b.WriteString(" " + v)
+			}
 		}
 		b.WriteString("\n")
 	}

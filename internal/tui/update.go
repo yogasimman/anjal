@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Yogasimman Ravisagar
+// This software is released under the MIT License.
+// https://opensource.org/licenses/MIT
+
 package tui
 
 import (
@@ -257,6 +261,27 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 			return m, nil
+		case "D":
+			if m.focus == FocusSidebar && m.singleFilePath == "" && len(m.collections) > 0 {
+				col := m.collections[m.activeColIndex]
+				err := os.Remove(col.FilePath)
+				if err != nil {
+					m.err = fmt.Errorf("Failed to delete collection: %v", err)
+				} else {
+					cols, _ := parser.LoadWorkspace()
+					m.collections = cols
+					if m.activeColIndex >= len(m.collections) {
+						m.activeColIndex = len(m.collections) - 1
+					}
+					if m.activeColIndex < 0 {
+						m.activeColIndex = 0
+					}
+					m.activeRequest = nil
+					m.response = nil
+					m.rebuildSidebar()
+				}
+			}
+			return m, nil
 		case "y":
 			if m.response != nil {
 				clipboard.WriteAll(m.response.Body)
@@ -480,6 +505,9 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		} else {
 			m.response = &msg.response
 			m.err = nil
+			if m.activeRequest != nil {
+				m.responseCache[m.activeRequest.ID] = m.response
+			}
 			content := formatResponse(&m, m.response)
 			
 			// Wrap content to fit viewport
@@ -844,6 +872,8 @@ func (m *AppModel) onSidebarChange() {
 		req := &m.requests[idx]
 		m.activeRequest = req
 		
+		m.response = m.responseCache[req.ID]
+
 		// Keep textareas synchronized for passive viewing
 		m.editMethod.SetValue(req.Method)
 		m.editTitle.SetValue(req.Title)

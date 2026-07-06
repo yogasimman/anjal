@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Yogasimman Ravisagar
+// This software is released under the MIT License.
+// https://opensource.org/licenses/MIT
+
 package env
 
 import (
@@ -82,17 +86,18 @@ func ResolveWriteDir() (string, error) {
 // Save writes a single key=value to a collection's .env file.
 // Writes to the local workspace if one exists, otherwise global ~/.anjal/.
 func Save(collectionName, key, value string) error {
-	if collectionName == "" {
-		return fmt.Errorf("collection name is required to save")
-	}
-
 	ws, err := ResolveWriteDir()
 	if err != nil {
 		return err
 	}
 
 	name := strings.TrimSuffix(collectionName, ".md")
-	path := filepath.Join(ws, "."+name+".env")
+	var path string
+	if name == "" {
+		path = filepath.Join(ws, ".env")
+	} else {
+		path = filepath.Join(ws, "."+name+".env")
+	}
 
 	lines, _ := readLines(path)
 
@@ -123,17 +128,18 @@ func Save(collectionName, key, value string) error {
 // Delete removes a key from a collection's .env file.
 // Targets the local workspace if one exists, otherwise global ~/.anjal/.
 func Delete(collectionName, key string) error {
-	if collectionName == "" {
-		return fmt.Errorf("collection name is required")
-	}
-
 	ws, err := ResolveWriteDir()
 	if err != nil {
 		return err
 	}
 
 	name := strings.TrimSuffix(collectionName, ".md")
-	path := filepath.Join(ws, "."+name+".env")
+	var path string
+	if name == "" {
+		path = filepath.Join(ws, ".env")
+	} else {
+		path = filepath.Join(ws, "."+name+".env")
+	}
 
 	lines, err := readLines(path)
 	if err != nil {
@@ -208,8 +214,8 @@ func writeLines(path string, lines []string) error {
 	return os.WriteFile(path, []byte(strings.Join(lines, "\n")+"\n"), 0644)
 }
 
-// resolveRe matches {{.KEY}}, {{ .KEY }}, {{.KEY }}, etc.
-var resolveRe = regexp.MustCompile(`\{\{\s*\.\s*(\w+)\s*\}\}`)
+// resolveRe matches {{KEY}}, {{ KEY }}, {{.KEY}}, etc.
+var resolveRe = regexp.MustCompile(`\{\{\s*\.?\s*(\w+)\s*\}\}`)
 
 // Resolve replaces {{.VAR_NAME}} placeholders (whitespace-tolerant) with
 // values from the vars map.

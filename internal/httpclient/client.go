@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Yogasimman Ravisagar
+// This software is released under the MIT License.
+// https://opensource.org/licenses/MIT
+
 package httpclient
 
 import (
@@ -31,7 +35,9 @@ var pooledClient = &http.Client{
 	},
 }
 
-func Execute(ctx context.Context, request models.APIRequest) (models.APIResponse, error) {
+func Execute(parentCtx context.Context, request models.APIRequest) (models.APIResponse, error) {
+	ctx, cancel := context.WithTimeout(parentCtx, 30*time.Second)
+	defer cancel()
 
 	u, err := url.Parse(request.URL)
 	if err != nil {
@@ -83,10 +89,17 @@ func Execute(ctx context.Context, request models.APIRequest) (models.APIResponse
 
 	contentType := detectContentType(resp.Header.Get("Content-Type"))
 
+	var bodyStr string
+	if contentType == "image" || contentType == "pdf" {
+		bodyStr = base64.StdEncoding.EncodeToString(respBytes)
+	} else {
+		bodyStr = string(respBytes)
+	}
+
 	return models.APIResponse{
 		StatusCode:  resp.StatusCode,
 		Status:      resp.Status,
-		Body:        string(respBytes),
+		Body:        bodyStr,
 		Headers:     resp.Header,
 		Latency:     latency,
 		ContentType: contentType,
@@ -223,6 +236,10 @@ func detectContentType(contentType string) string {
 		return "form"
 	case strings.HasPrefix(mediaType, "text/plain"):
 		return "text"
+	case strings.HasPrefix(mediaType, "image/"):
+		return "image"
+	case mediaType == "application/pdf":
+		return "pdf"
 	default:
 		return "raw"
 	}

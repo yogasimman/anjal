@@ -1,4 +1,8 @@
-import React, { useState } from 'react';
+// Copyright (c) 2026 Yogasimman Ravisagar
+// This software is released under the MIT License.
+// https://opensource.org/licenses/MIT
+
+import React, { useState, useEffect } from 'react';
 import { X, Plus, Trash2 } from 'lucide-react';
 
 interface EnvironmentModalProps {
@@ -9,7 +13,20 @@ interface EnvironmentModalProps {
 }
 
 export default function EnvironmentModal({ isOpen, onClose, env, setEnv }: EnvironmentModalProps) {
-  const [entries, setEntries] = useState(Object.entries(env));
+  const [entries, setEntries] = useState<[string, string][]>([]);
+  const [authType, setAuthType] = useState('none');
+  const [authToken, setAuthToken] = useState('');
+  const [authUsername, setAuthUsername] = useState('');
+  const [authPassword, setAuthPassword] = useState('');
+
+  useEffect(() => {
+    const standardEntries = Object.entries(env).filter(([k]) => !k.startsWith('WORKSPACE_AUTH_'));
+    setEntries(standardEntries);
+    setAuthType(env['WORKSPACE_AUTH_TYPE'] || 'none');
+    setAuthToken(env['WORKSPACE_AUTH_TOKEN'] || '');
+    setAuthUsername(env['WORKSPACE_AUTH_USERNAME'] || '');
+    setAuthPassword(env['WORKSPACE_AUTH_PASSWORD'] || '');
+  }, [env, isOpen]);
 
   if (!isOpen) return null;
 
@@ -35,6 +52,17 @@ export default function EnvironmentModal({ isOpen, onClose, env, setEnv }: Envir
         newEnv[k.trim()] = v;
       }
     }
+    
+    if (authType !== 'none') {
+      newEnv['WORKSPACE_AUTH_TYPE'] = authType;
+      if (authType === 'bearer') {
+        newEnv['WORKSPACE_AUTH_TOKEN'] = authToken;
+      } else if (authType === 'basic') {
+        newEnv['WORKSPACE_AUTH_USERNAME'] = authUsername;
+        newEnv['WORKSPACE_AUTH_PASSWORD'] = authPassword;
+      }
+    }
+    
     setEnv(newEnv);
     onClose();
   };
@@ -48,6 +76,63 @@ export default function EnvironmentModal({ isOpen, onClose, env, setEnv }: Envir
         </div>
         
         <div className="p-6 flex-1 overflow-auto max-h-[60vh] space-y-4">
+          <div className="mb-8 border border-[#444] p-4 bg-[#1A1A1A]">
+            <h3 className="font-['Playfair_Display'] italic text-lg mb-4">Collection Authentication</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs uppercase tracking-widest text-[#888] mb-2">Auth Type</label>
+                <select 
+                  value={authType} 
+                  onChange={e => setAuthType(e.target.value)}
+                  className="w-full bg-transparent p-3 text-sm font-['JetBrains_Mono'] focus:outline-none border border-[#444] text-[#F5F4F0]"
+                >
+                  <option value="none">None</option>
+                  <option value="bearer">Bearer Token</option>
+                  <option value="basic">Basic Auth</option>
+                </select>
+              </div>
+              
+              {authType === 'bearer' && (
+                <div>
+                  <label className="block text-xs uppercase tracking-widest text-[#888] mb-2">Token</label>
+                  <input 
+                    type="password" 
+                    value={authToken}
+                    onChange={e => setAuthToken(e.target.value)}
+                    placeholder="Enter Bearer Token..."
+                    className="w-full bg-transparent p-3 text-sm font-['JetBrains_Mono'] focus:outline-none border border-[#444] text-[#F5F4F0]"
+                  />
+                </div>
+              )}
+
+              {authType === 'basic' && (
+                <div className="flex gap-4">
+                  <div className="flex-1">
+                    <label className="block text-xs uppercase tracking-widest text-[#888] mb-2">Username</label>
+                    <input 
+                      type="text" 
+                      value={authUsername}
+                      onChange={e => setAuthUsername(e.target.value)}
+                      placeholder="Username..."
+                      className="w-full bg-transparent p-3 text-sm font-['JetBrains_Mono'] focus:outline-none border border-[#444] text-[#F5F4F0]"
+                    />
+                  </div>
+                  <div className="flex-1">
+                    <label className="block text-xs uppercase tracking-widest text-[#888] mb-2">Password</label>
+                    <input 
+                      type="password" 
+                      value={authPassword}
+                      onChange={e => setAuthPassword(e.target.value)}
+                      placeholder="Password..."
+                      className="w-full bg-transparent p-3 text-sm font-['JetBrains_Mono'] focus:outline-none border border-[#444] text-[#F5F4F0]"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <h3 className="font-['Playfair_Display'] italic text-lg mb-4">Environment Variables</h3>
           <p className="text-sm text-[#888] font-['JetBrains_Mono'] mb-4">
             Variables are stored locally in the app. Use {"{{"}VARIABLE{"}}"} syntax in your requests.
           </p>

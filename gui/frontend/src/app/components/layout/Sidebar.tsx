@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Yogasimman Ravisagar
+// This software is released under the MIT License.
+// https://opensource.org/licenses/MIT
+
 import React, { useState } from 'react';
 import { Search, FolderOpen, CornerDownRight, Plus, Trash2, Settings } from 'lucide-react';
 import { models } from '../../../../wailsjs/go/models';
@@ -10,17 +14,22 @@ interface SidebarProps {
   onSelectWorkspace: () => void;
   onSelectRequest: (req: models.APIRequest) => void;
   onAddRequest: (col: models.Collection) => void;
+  onAddCollection: () => void;
   onDeleteRequest: (col: models.Collection, req: models.APIRequest) => void;
   onDeleteCollection: (col: models.Collection) => void;
+  onRunAll?: (col: models.Collection) => void;
+  isMultiRunning?: boolean;
+  isSingleFileMode?: boolean;
   onOpenSettings: () => void;
+  onCloseWorkspace: () => void;
 }
 
 export default function Sidebar({ 
   isOpen, collections, activeRequest, onOpenCollection, onSelectWorkspace, 
-  onSelectRequest, onAddRequest, onDeleteRequest, onDeleteCollection, onOpenSettings
+  onSelectRequest, onAddRequest, onAddCollection, onDeleteRequest, onDeleteCollection, onRunAll, isMultiRunning, isSingleFileMode, onOpenSettings, onCloseWorkspace
 }: SidebarProps) {
   return (
-    <aside className={`${isOpen ? 'w-72' : 'w-0 -translate-x-full'} transition-all duration-500 flex-shrink-0 border-r border-[#444] flex flex-col relative z-20 bg-[#111111]`}>
+    <aside className={`${isOpen ? 'w-72' : 'w-0 -translate-x-full'} overflow-hidden transition-all duration-500 flex-shrink-0 border-r border-[#444] flex flex-col relative z-20 bg-[#111111]`}>
       <div className="p-6 border-b border-[#444] flex items-center justify-between">
         <div className="flex flex-col">
           <span className="font-['Playfair_Display'] font-bold text-4xl tracking-tight text-[#F5F4F0]">Anjal.</span>
@@ -30,12 +39,22 @@ export default function Sidebar({
           <button onClick={onSelectWorkspace} className="p-2 hover:bg-[#222] rounded transition-colors" title="Select Workspace Folder">
             <FolderOpen className="w-5 h-5 text-[#888] hover:text-[#5BA76B]" />
           </button>
+          <button onClick={onCloseWorkspace} className="p-2 hover:bg-[#222] rounded transition-colors ml-1" title="Close Workspace">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-[#888] hover:text-[#E84E38]"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+          </button>
         </div>
       </div>
 
       <div className="flex-1 overflow-y-auto custom-scrollbar">
         <div className="px-4 py-6">
-          <h2 className="font-['Playfair_Display'] italic text-xl text-[#F5F4F0] mb-6">Collections</h2>
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="font-['Playfair_Display'] italic text-xl text-[#F5F4F0]">Collections</h2>
+            {!isSingleFileMode && (
+              <button onClick={onAddCollection} className="p-1 hover:bg-[#222] rounded text-[#888] hover:text-[#5BA76B] transition-colors" title="Add Collection">
+                <Plus className="w-4 h-4" />
+              </button>
+            )}
+          </div>
           <div className="space-y-6">
             {collections.map(col => (
               <CollectionItem 
@@ -44,6 +63,9 @@ export default function Sidebar({
                 defaultOpen={true}
                 onAdd={() => onAddRequest(col)}
                 onDelete={() => onDeleteCollection(col)}
+                onRunAll={() => onRunAll && onRunAll(col)}
+                isMultiRunning={isMultiRunning}
+                isSingleFileMode={isSingleFileMode}
               >
                 {col.Requests && col.Requests.map(req => (
                   <div key={req.ID}>
@@ -75,7 +97,7 @@ export default function Sidebar({
   );
 }
 
-function CollectionItem({ title, children, defaultOpen = false, onAdd, onDelete }: { title: string, children: React.ReactNode, defaultOpen?: boolean, onAdd: () => void, onDelete: () => void }) {
+function CollectionItem({ title, children, defaultOpen = false, onAdd, onDelete, onRunAll, isMultiRunning, isSingleFileMode }: { title: string, children: React.ReactNode, defaultOpen?: boolean, onAdd: () => void, onDelete: () => void, onRunAll?: () => void, isMultiRunning?: boolean, isSingleFileMode?: boolean }) {
   const [isOpen, setIsOpen] = useState(defaultOpen);
   
   return (
@@ -89,12 +111,19 @@ function CollectionItem({ title, children, defaultOpen = false, onAdd, onDelete 
           <span className="font-semibold text-lg">{title}</span>
         </div>
         <div className="opacity-0 group-hover:opacity-100 flex items-center transition-opacity">
+          {onRunAll && (
+            <button onClick={(e) => { e.stopPropagation(); onRunAll(); }} disabled={isMultiRunning} className={`p-1 ${isMultiRunning ? 'text-[#5BA76B]' : 'text-[#888] hover:text-[#5BA76B]'}`} title="Run All Requests">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+            </button>
+          )}
           <button onClick={(e) => { e.stopPropagation(); onAdd(); }} className="p-1 text-[#888] hover:text-[#5BA76B]" title="Add Request">
             <Plus className="w-4 h-4" />
           </button>
-          <button onClick={(e) => { e.stopPropagation(); onDelete(); }} className="p-1 text-[#888] hover:text-[#E84E38]" title="Delete Collection">
-            <Trash2 className="w-4 h-4" />
-          </button>
+          {!isSingleFileMode && (
+            <button onClick={(e) => { e.stopPropagation(); onDelete(); }} className="p-1 text-[#888] hover:text-[#E84E38]" title="Delete Collection">
+              <Trash2 className="w-4 h-4" />
+            </button>
+          )}
         </div>
       </div>
       {isOpen && (
@@ -108,10 +137,11 @@ function CollectionItem({ title, children, defaultOpen = false, onAdd, onDelete 
 
 function RequestItem({ method, name, active = false, onClick, onDelete }: { method: string, name: string, active?: boolean, onClick: () => void, onDelete: (e: React.MouseEvent) => void }) {
   const methodColor = 
-    method === 'GET' ? 'text-[#F5F4F0]' : 
-    method === 'POST' ? 'text-[#E84E38]' : 
-    method === 'PUT' ? 'text-[#E09A38]' : 
-    method === 'DELETE' ? 'text-[#C55A5A]' : 'text-[#888]';
+    method === 'GET' ? 'text-[#5BA76B]' : 
+    method === 'POST' ? 'text-[#E09A38]' : 
+    method === 'PUT' ? 'text-[#3B82F6]' : 
+    method === 'PATCH' ? 'text-[#A855F7]' : 
+    method === 'DELETE' ? 'text-[#E84E38]' : 'text-[#888]';
 
   return (
     <div 

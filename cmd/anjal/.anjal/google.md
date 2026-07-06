@@ -2,6 +2,7 @@
 
 ```http
 GET https://www.google.com
+@query 213 23232
 Accept: text/html
 ```
 

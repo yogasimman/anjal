@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Yogasimman Ravisagar
+// This software is released under the MIT License.
+// https://opensource.org/licenses/MIT
+
 package main
 
 import (
@@ -112,8 +116,12 @@ func main() {
 		envVars, _ = env.LoadForCollection(filepath.Base(collections[0].FilePath))
 	}
 
-	isWorkspace := len(args) == 0
-	m := tui.InitialModel(collections, envVars, isWorkspace)
+	var singleFilePath string
+	if len(args) > 0 {
+		singleFilePath = args[0]
+	}
+
+	m := tui.InitialModel(collections, envVars, singleFilePath)
 	p := tea.NewProgram(m, tea.WithAltScreen(), tea.WithMouseCellMotion())
 	if _, err := p.Run(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)

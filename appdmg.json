@@ -1,0 +1,18 @@
+{
+  "title": "Anjal",
+  "icon": "gui/build/appicon.png",
+  "background-color": "#2c2c2e",
+  "format": "ULFO",
+  "window": {
+    "size": {
+      "width": 600,
+      "height": 400
+    }
+  },
+  "contents": [
+    { "x": 150, "y": 150, "type": "file", "path": "gui/build/bin/anjal-desktop.app" },
+    { "x": 450, "y": 150, "type": "link", "path": "/Applications" },
+    { "x": 150, "y": 300, "type": "file", "path": "anjal-cli" },
+    { "x": 450, "y": 300, "type": "position", "path": ".background" }
+  ]
+}

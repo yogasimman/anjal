@@ -1,0 +1,36 @@
+# Binaries and Installers
+anjal-cli
+anjal-cli.exe
+*.dmg
+*.exe
+*.app
+gui/build/bin/
+
+# Node/Frontend
+node_modules/
+gui/frontend/node_modules/
+gui/frontend/dist/
+gui/frontend/.DS_Store
+
+# Go
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+vendor/
+
+# OS specific
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+.Spotlight-V100
+.Trashes
+
+# IDEs
+.idea/
+.vscode/
+*.swp
