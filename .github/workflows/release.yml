@@ -35,7 +35,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
 
       - name: Install Linux Dependencies
         if: runner.os == 'Linux'
@@ -86,14 +86,14 @@ jobs:
           if [[ "$VERSION" == "refs/"* ]]; then VERSION="1.0.0"; fi
           
           # 2. Build DEB and RPM
-          fpm -s dir -t deb -n anjal -v "$VERSION" -p Anjal-Linux_${VERSION}_amd64.deb \
-            gui/build/bin/anjal=/usr/bin/anjal \
+          fpm -s dir -t deb -n anjal-desktop -v "$VERSION" -p Anjal-Linux_${VERSION}_amd64.deb \
+            gui/build/bin/anjal-desktop=/usr/bin/anjal-desktop \
             anjal-cli=/usr/bin/anjal-cli \
             anjal.desktop=/usr/share/applications/anjal.desktop \
             gui/build/appicon.png=/usr/share/icons/hicolor/256x256/apps/anjal.png
             
-          fpm -s dir -t rpm -n anjal -v "$VERSION" -p Anjal-Linux_${VERSION}_x86_64.rpm \
-            gui/build/bin/anjal=/usr/bin/anjal \
+          fpm -s dir -t rpm -n anjal-desktop -v "$VERSION" -p Anjal-Linux_${VERSION}_x86_64.rpm \
+            gui/build/bin/anjal-desktop=/usr/bin/anjal-desktop \
             anjal-cli=/usr/bin/anjal-cli \
             anjal.desktop=/usr/share/applications/anjal.desktop \
             gui/build/appicon.png=/usr/share/icons/hicolor/256x256/apps/anjal.png
@@ -103,7 +103,7 @@ jobs:
           chmod +x appimagetool
           
           mkdir -p AppDir/usr/bin
-          cp gui/build/bin/anjal AppDir/usr/bin/
+          cp gui/build/bin/anjal-desktop AppDir/usr/bin/
           cp anjal-cli AppDir/usr/bin/
           cp anjal.desktop AppDir/
           cp gui/build/appicon.png AppDir/anjal.png
@@ -111,7 +111,7 @@ jobs:
           cat << 'EOF' > AppDir/AppRun
           #!/bin/sh
           HERE="$(dirname "$(readlink -f "${0}")")"
-          exec "${HERE}/usr/bin/anjal" "$@"
+          exec "${HERE}/usr/bin/anjal-desktop" "$@"
           EOF
           chmod +x AppDir/AppRun
           

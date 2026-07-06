@@ -1,7 +1,7 @@
 [Desktop Entry]
 Name=Anjal
 Comment=A powerful cross-platform API client
-Exec=anjal
+Exec=anjal-desktop
 Icon=anjal
 Terminal=false
 Type=Application
