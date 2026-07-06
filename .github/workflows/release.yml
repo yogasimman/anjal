@@ -75,6 +75,48 @@ jobs:
         working-directory: gui
         run: wails build -nsis
 
+      - name: Package Linux (AppImage, DEB, RPM)
+        if: runner.os == 'Linux'
+        run: |
+          # 1. Install fpm for deb/rpm
+          sudo gem install fpm
+          
+          # Get version from tag or use fallback
+          VERSION="${GITHUB_REF#refs/tags/v}"
+          if [[ "$VERSION" == "refs/"* ]]; then VERSION="1.0.0"; fi
+          
+          # 2. Build DEB and RPM
+          fpm -s dir -t deb -n anjal -v "$VERSION" -p Anjal-Linux_${VERSION}_amd64.deb \
+            gui/build/bin/anjal=/usr/bin/anjal \
+            anjal-cli=/usr/bin/anjal-cli \
+            anjal.desktop=/usr/share/applications/anjal.desktop \
+            gui/build/appicon.png=/usr/share/icons/hicolor/256x256/apps/anjal.png
+            
+          fpm -s dir -t rpm -n anjal -v "$VERSION" -p Anjal-Linux_${VERSION}_x86_64.rpm \
+            gui/build/bin/anjal=/usr/bin/anjal \
+            anjal-cli=/usr/bin/anjal-cli \
+            anjal.desktop=/usr/share/applications/anjal.desktop \
+            gui/build/appicon.png=/usr/share/icons/hicolor/256x256/apps/anjal.png
+
+          # 3. Build AppImage
+          wget -qO appimagetool "https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage"
+          chmod +x appimagetool
+          
+          mkdir -p AppDir/usr/bin
+          cp gui/build/bin/anjal AppDir/usr/bin/
+          cp anjal-cli AppDir/usr/bin/
+          cp anjal.desktop AppDir/
+          cp gui/build/appicon.png AppDir/anjal.png
+          
+          cat << 'EOF' > AppDir/AppRun
+          #!/bin/sh
+          HERE="$(dirname "$(readlink -f "${0}")")"
+          exec "${HERE}/usr/bin/anjal" "$@"
+          EOF
+          chmod +x AppDir/AppRun
+          
+          ./appimagetool --appimage-extract-and-run AppDir Anjal-Linux-x86_64.AppImage
+
       - name: Upload GUI Build Artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -83,6 +125,9 @@ jobs:
             gui/build/bin/
             anjal-cli*
             Anjal-macOS.dmg
+            *.AppImage
+            *.deb
+            *.rpm
             !gui/build/bin/**/*.txt
 
   release:
