@@ -3,7 +3,7 @@
   <p><strong>A modern, keyboard-driven API testing tool for the terminal.</strong></p>
 </div>
 
-Anjal is a powerful Terminal User Interface (TUI) application designed for developers who love staying in their terminal. It acts as a lightweight Postman alternative, allowing you to organize, edit, and execute HTTP requests purely from the CLI. 
+Anjal is a powerful cross-platform API testing tool designed for developers who love automation and speed. It acts as a lightweight Postman alternative, allowing you to organize, edit, and execute HTTP requests from a clean Graphical User Interface (GUI) or purely from the terminal via the Terminal User Interface (TUI). 
 
 Our goal with Anjal is to bridge the gap between traditional UI-heavy API clients and automation-friendly scripts, creating an environment that is heavily geared towards developer experience, automation, and speed.
 
@@ -11,13 +11,33 @@ Our goal with Anjal is to bridge the gap between traditional UI-heavy API client
 
 ## Installation
 
-Because Anjal is built in Go, you can install it instantly and use it anywhere in your terminal by running:
+Anjal provides two distinct applications depending on your workflow: **Anjal Desktop** (GUI) and **Anjal CLI** (TUI/Headless).
+
+### 1. Anjal Desktop (GUI)
+The easiest way to install Anjal is by downloading the pre-compiled installer for your operating system from the **[GitHub Releases page](../../releases)**. 
+We provide fully automated builds for all major platforms:
+- **macOS**: `Anjal-macOS.dmg` (Universal binary for Apple Silicon & Intel)
+- **Windows**: `Anjal-Windows.exe` (NSIS Installer)
+- **Linux**: `.AppImage`, `.deb`, and `.rpm` packages
+
+### 2. Anjal CLI (TUI)
+If you prefer to stay in the terminal, you can install the CLI version instantly using Go:
 
 ```bash
 go install github.com/yogasimman/anjal/cmd/anjal@latest
 ```
-
 *Note: Ensure your `~/go/bin` is in your system's `$PATH` so you can simply type `anjal` into your terminal!*
+
+---
+
+## Developing the GUI Locally
+
+Anjal Desktop is built using [Wails](https://wails.io/), combining a Go backend with a React (TypeScript + Vite) frontend.
+
+To run the GUI in live development mode (with hot-reloading for the frontend):
+1. Install the Wails CLI: `go install github.com/wailsapp/wails/v2/cmd/wails@latest`
+2. Navigate to the `gui` directory: `cd gui`
+3. Run the development server: `wails dev`
 
 ---
 
