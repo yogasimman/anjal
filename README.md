@@ -17,6 +17,8 @@ Anjal provides two distinct applications depending on your workflow: **Anjal Des
 The easiest way to install Anjal is by downloading the pre-compiled installer for your operating system from the **[GitHub Releases page](../../releases)**. 
 We provide fully automated builds for all major platforms:
 - **macOS**: `Anjal-macOS.dmg` (Universal binary for Apple Silicon & Intel)
+  - *Note for Mac Users: Because Anjal is open-source and not signed with a paid Apple Developer certificate, macOS Gatekeeper may say the app is "damaged" or "malware". To fix this, after copying Anjal to your Applications folder, open your terminal and run:*
+  - `xattr -cr /Applications/anjal-desktop.app`
 - **Windows**: `Anjal-Windows.exe` (NSIS Installer)
 - **Linux**: `.AppImage`, `.deb`, and `.rpm` packages
 
