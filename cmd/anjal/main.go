@@ -206,7 +206,7 @@ func resolveRequest(req *models.APIRequest, vars map[string]string) {
 	}
 	if req.Auth == nil {
 		authType := vars["WORKSPACE_AUTH_TYPE"]
-		if authType != "" {
+		if authType != "" && authType != "none" {
 			params := make(map[string]string)
 			for k, v := range vars {
 				if strings.HasPrefix(k, "WORKSPACE_AUTH_") && k != "WORKSPACE_AUTH_TYPE" {
